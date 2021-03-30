@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 var (
@@ -71,11 +72,54 @@ func Parse(input string) string {
 	return output.String()
 }
 
+// Deparse return string which replacing all emoji with :alias:
+func Deparse(msg string) string {
+	var cRunes []rune
+	var output strings.Builder
+
+	for len(msg) > 0 {
+		r, size := utf8.DecodeRuneInString(msg)
+		cRunes = append(cRunes, r)
+		c := fmt.Sprintf("%s", string(cRunes))
+		if alias, ok := reverseEmojiMap[c]; ok {
+			// Found alias
+			normalizedStr := normalizedString(msg)
+			lge, s := longestEmoji(normalizedStr)
+			if lge != "" {
+				output.WriteString(lge)
+				size = s
+			} else {
+				output.WriteString(alias)
+			}
+			// Reset current rune
+			cRunes = nil
+		}
+		if s := RunesToHexKey([]rune{r}); len(s) >= 4 {
+			msg = msg[size:]
+			continue
+		}
+		// Flush cRunes if any
+		if len(cRunes) > 0 {
+			output.WriteString(string(cRunes))
+			cRunes = nil
+		}
+		msg = msg[size:]
+	}
+	return output.String()
+}
+
 // Map returns the emojis map.
 // Key is the alias of the emoji.
 // Value is the code of the emoji.
 func Map() map[string]string {
 	return emojiMap
+}
+
+// ReversedMap returns the reversed emoji map of aliases
+// Key is the code of the emoji
+// Value is the alias
+func ReversedMap() map[string]string {
+	return reverseEmojiMap
 }
 
 // AppendAlias adds new emoji pair to the emojis map.
@@ -115,6 +159,13 @@ func Find(alias string) (string, bool) {
 	return "", false
 }
 
+func FindReverse(unicode string) (string, bool) {
+	if alias, ok := reverseEmojiMap[unicode]; ok {
+		return alias, true
+	}
+	return "", false
+}
+
 // checkFlag finds flag emoji for `flag-[CODE]` pattern
 func checkFlag(alias string) string {
 	if matches := flagRegex.FindStringSubmatch(alias); len(matches) == 2 {
@@ -124,4 +175,43 @@ func checkFlag(alias string) string {
 	}
 
 	return ""
+}
+
+// RunesToHexKey - Convert a slice of runes to hex string representation of their Unicode Code Point value
+func RunesToHexKey(runes []rune) (output string) {
+	// Build a slice of hex representations of each rune
+	hexParts := []string{}
+	for _, rune := range runes {
+		hexParts = append(hexParts, fmt.Sprintf("%X", rune))
+	}
+
+	// Join the hex strings with a hypen - this is the key used in the emojis map
+	output = strings.Join(hexParts, "-")
+	return
+}
+
+func normalizedString(input string) string {
+	runes := []rune(input)
+	for idx, r := range runes {
+		if hk := RunesToHexKey([]rune{r}); len(hk) < 4 {
+			return string(runes[:idx+1])
+		}
+	}
+	return input
+}
+
+func longestEmoji(normalizedStr string) (string, int) {
+	runes := []rune(normalizedStr)
+	size := 0
+	for len(runes) > 0 {
+		emoji := fmt.Sprintf("%s", string(runes))
+		if alias, ok := reverseEmojiMap[emoji]; ok {
+			for _, r := range runes {
+				size += utf8.RuneLen(r)
+			}
+			return alias, size
+		}
+		runes = runes[:len(runes)-1]
+	}
+	return "", 0
 }

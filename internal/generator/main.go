@@ -17,6 +17,7 @@ import (
 const (
 	constantsFile = "constants.go"
 	aliasesFile   = "map.go"
+	reversedFile  = "reversed_map.go"
 )
 
 // customEmojis is the list of emojis which unicode and gemoji databases don't have.
@@ -34,11 +35,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	constants := generateConstants(emojis)
 	aliases := generateAliases(emojis, gemojis)
 
+
+	reversed := generateReversedMap(gemojis)
+
 	if err = save(constantsFile, emojiListURL, constants); err != nil {
+		panic(err)
+	}
+	if err = save(reversedFile, gemojiURL, reversed); err != nil {
 		panic(err)
 	}
 
@@ -134,6 +140,21 @@ func generateAliases(emojis *groups, gemojis map[string]string) string {
 
 	return r
 }
+
+func generateReversedMap(gemojis map[string]string) string {
+	m := reverseMap(gemojis)
+	custom := reverseMap(customEmojis)
+	for k, v := range custom {
+		m[k] = v
+	}
+	var r string
+	for k, v := range m {
+		r += fmt.Sprintf("%+q: %+q,\n", k, v)
+	}
+	return r
+
+}
+
 func save(filename, url, data string) error {
 	tmpl, err := template.ParseFiles(fmt.Sprintf("internal/generator/%v.tmpl", filename))
 	if err != nil {
@@ -211,4 +232,12 @@ func readLines(b []byte, fn func(string)) error {
 	}
 
 	return nil
+}
+
+func reverseMap(m map[string]string) map[string]string {
+	n := make(map[string]string)
+	for k, v := range m {
+		n[v] = k
+	}
+	return n
 }

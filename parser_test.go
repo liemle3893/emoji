@@ -157,6 +157,15 @@ func TestFind(t *testing.T) {
 	}
 }
 
+func TestDeparse(t *testing.T) {
+	input := "I ❤️ you"
+	expected := "I :heart: you"
+	result := Deparse(input)
+	if result != expected {
+		t.Fatalf("expected: %s, result: %s", expected, result)
+	}
+}
+
 func BenchmarkParse(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		_ = Parse("I am :man_technologist: from :flag_for_turkey:. Tests are :thumbs_up:")
